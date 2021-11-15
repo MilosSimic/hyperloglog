@@ -2,30 +2,25 @@ package main
 
 import (
 	"fmt"
-	"hash/fnv"
 )
 
-func fingerprint(b []byte) uint64 {
-	hash := fnv.New64a()
-	hash.Write(b)
-	return hash.Sum64()
-}
-
 func main() {
-	hll, err := NewFromPrecision(4)
+	hll, err := NewFromPrecision(16)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	n := fingerprint([]byte("Test"))
-	n1 := fingerprint([]byte("Test"))
-	n2 := fingerprint([]byte("Test2"))
-	n3 := fingerprint([]byte("Test3"))
+	hll.Add([]byte("Test1"))
+	hll.Add([]byte("Test1"))
+	hll.Add([]byte("Test1"))
+	hll.Add([]byte("Test1"))
 
-	hll.Add(n)
-	hll.Add(n1)
-	hll.Add(n2)
-	hll.Add(n3)
+	hll.Add([]byte("124"))
+	hll.Add([]byte("pdm390"))
+	hll.Add([]byte("abcd"))
+	hll.Add([]byte("yk3801083841jhfnvofn es"))
+	hll.Add([]byte("nrnrvnevn22480jn"))
+	hll.Add([]byte("Milos"))
 
 	fmt.Println(hll.Estimate())
 }

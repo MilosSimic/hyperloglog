@@ -4,11 +4,12 @@ import (
 	"errors"
 	"math"
 	"math/bits"
+	"hash/fnv"
 )
 
 const (
 	HLL_MIN_PRECISION = 4
-	HLL_MAX_PRECISION = 18
+	HLL_MAX_PRECISION = 16
 )
 
 type HLL struct {
@@ -22,7 +23,7 @@ func NewFromPrecision(p uint8) (*HLL, error) {
 		return nil, errors.New("Precision must be between 4 and 16")
 	}
 
-	m := uint64(1 << p)
+	m := uint64(math.Pow(2, float64(p)))
 	return &HLL{
 		p:   p,
 		m:   m,
@@ -45,26 +46,37 @@ func NewFromErr(err float64) (*HLL, error) {
 	}, nil
 }
 
-func (hll *HLL) Add(x uint64) {
+func (hll *HLL) fingerprint(b []byte) uint32 {
+	hash := fnv.New32a()
+	hash.Write(b)
+	return hash.Sum32()
+}
+
+func (hll *HLL) Add(data []byte) {
 	//shift on right for precision amount of bits
-	i := x >> hll.p
-	hll.reg[i] = uint8(bits.LeadingZeros64(uint64(hll.m-1)&x) + 1)
+	x := hll.fingerprint(data)
+	k := uint32(32-hll.p)
+	r := uint8(1 + bits.LeadingZeros32(x << hll.p))
+	i    := x >> uint8(k)
+	if r > hll.reg[i] {
+		hll.reg[i] = r
+	}
 }
 
 func (hll *HLL) Estimate() float64 {
 	sum := 0.0
 	for _, val := range hll.reg {
-		sum = sum + math.Pow(float64(-val), 2.0)
+		sum += math.Pow(math.Pow(2.0, float64(val)),-1)
 	}
 
 	alpha := 0.7213 / (1.0 + 1.079/float64(hll.m))
 	estimation := alpha * math.Pow(float64(hll.m), 2.0) / sum
 	emptyRegs := hll.emptyCount()
-	if estimation < 2.5*float64(hll.m) { // do small range correction
+	if estimation <= 2.5*float64(hll.m) { // do small range correction
 		if emptyRegs > 0 {
 			estimation = float64(hll.m) * math.Log(float64(hll.m)/float64(emptyRegs))
 		}
-	} else if estimation > math.Pow(2.0, 32.0)/30.0 { // do large range correction
+	} else if estimation > 1/30.0*math.Pow(2.0, 32.0) { // do large range correction
 		estimation = -math.Pow(2.0, 32.0) * math.Log(1.0-estimation/math.Pow(2.0, 32.0))
 	}
 	return estimation
@@ -79,8 +91,8 @@ func (hll *HLL) PrecisionErr() float64 {
 	return 1.04 / math.Sqrt(registers)
 }
 
-func (hll *HLL) emptyCount() uint8 {
-	sum := uint8(0)
+func (hll *HLL) emptyCount() int {
+	sum := 0
 	for _, val := range hll.reg {
 		if val == 0 {
 			sum++
