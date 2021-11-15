@@ -8,7 +8,7 @@ import (
 
 const (
 	HLL_MIN_PRECISION = 4
-	HLL_MAX_PRECISION = 18
+	HLL_MAX_PRECISION = 16
 )
 
 type HLL struct {
